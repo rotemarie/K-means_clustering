@@ -116,7 +116,7 @@ fig3.show()
 ```
 
 ![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/parallelcoord.png)
-![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/pca.png) {:width="10px"}
+![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/pca.png){width=1px}
 ![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/heatmap.png)
 ![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/trends2.png)
 
