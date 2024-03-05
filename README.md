@@ -316,6 +316,8 @@ fig3.show()
 ![](https://github.com/rotemarie/K-means_clustering/blob/main/graphs/trends2.png)
 
 
+using (https://www.kaggle.com/code/vatsalmavani/music-recommendation-system-using-spotify-dataset) for inspo and help
+
 
 
 
