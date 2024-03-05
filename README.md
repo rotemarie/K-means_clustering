@@ -1,6 +1,16 @@
-# K-Means Clustering Learning Project
+# Spotify Inspired - Music Reccommender 
 
-To gain more ML experience I used a music genre dataset for K-means clustering.
+I tried to imitate the Spotify algorithm by taking songs a user likes as input and returning a list of similar songs recommended for him.
+The app uses the Spotify API, and is written in Python.
+The following libraries are used: Spotipy, Streamlit, Numpy, Pandas, scipy, sklearn.
+
+## FrontEnd
+
+The app screens are presented here:
+![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/home.png)
+![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/entersong.png)
+![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/newsongs.png)
+
 
 ## Cleaning & Initial Analysis
 
