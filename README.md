@@ -4,14 +4,199 @@ I tried to imitate the Spotify algorithm by taking songs a user likes as input a
 The app uses the Spotify API, and is written in Python.
 The following libraries are used: Spotipy, Streamlit, Numpy, Pandas, scipy, sklearn.
 
-## FrontEnd
+## Front End
 
 The app screens are presented here:
 ![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/home.png)
 ![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/entersong.png)
 ![](https://github.com/rotemarie/Music-Recommender/blob/main/graphs/newsongs.png)
 
+Streamlit code:
+![file](https://github.com/rotemarie/Music-Recommender/blob/main/app.py)
+```bash
+data = pd.read_csv('data/data.csv')
 
+st.set_page_config(page_title='Music Recommender', page_icon = "spotify-icon-logos/logos/02_CMYK/02_PNG/Spotify_Logo_RGB_Black.png")
+st.image("spotify-icons-logos/logos/01_RGB/02_PNG/Spotify_Logo_RGB_Green.png", width=200)
+
+
+st.title("Music Recommender")
+st.subheader("Welcome to the Music Recommender!")
+st.caption("You are a click away from your new favorite music")
+
+song_name = st.text_input("Enter the song name:")
+release_year = st.text_input("Enter the release year:")
+
+# Define an empty dictionary to store the liked songs
+if 'liked_songs' not in st.session_state:
+    st.session_state['liked_songs'] = []
+
+# Submit button
+if st.button("Submit"):
+    if song_name and release_year:
+        submitted_info = {'name': song_name, 'year': int(release_year)}
+        st.session_state.liked_songs.append(submitted_info)
+        #st.write(st.session_state.liked_songs)
+        st.success(f"Song name: {song_name}, Release year: {release_year}")
+    else:
+        st.error("Please enter both the song name and release year.")
+
+st.caption("Click here when you are done entering songs:")
+if st.button("Find me new music"):
+    new_songs = mr.recommend_songs(st.session_state.liked_songs, data)
+    pp = pd.DataFrame(columns=['Song Name', 'Artists'])
+    for song in new_songs:
+        pp = pp.append({'Song Name': song['name'], 'Artists': song['artists'][1:-1]}, ignore_index=True)
+    st.data_editor(
+        pp,
+        column_config={
+            "widgets": st.column_config.TextColumn(
+                "Widgets",
+                help="Streamlit **widget** commands 🎈",
+                default="st.",
+                max_chars=50,
+                validate="^st\.[a-z_]+$",
+            )
+        },
+        hide_index=True,
+    )
+
+```
+
+Formatting:
+```bash
+[theme]
+base = "dark"
+primaryColor = "#1DB954"
+backgroundColor = "#191414"
+textColor = "#FFFFFF"
+font = "sans serif"
+```
+
+## Back End 
+![zipped file](https://github.com/rotemarie/Music-Recommender/blob/main/musicrec.zip)
+Replace the Spotify client ID and secret key with your credentials:
+```bash
+import spotipy
+import pandas as pd
+import numpy as np
+from spotipy.oauth2 import SpotifyClientCredentials
+from collections import defaultdict
+from scipy.spatial.distance import cdist
+from sklearn.pipeline import Pipeline
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+
+SPOTIPY_CLIENT_ID = ''
+SPOTIPY_CLIENT_SECRET = ''
+SPOTIPY_REDIRECT_URI = 'http://localhost:8501/'
+
+liked_songs = []
+```
+
+Data reading and clustering:
+```bash
+# read data
+genre_data = pd.read_csv('data/data_by_genres.csv')
+year_data = pd.read_csv('data/data_by_year.csv')
+data = pd.read_csv('data/data.csv')
+artist_data = pd.read_csv('data/data_by_artist.csv')
+
+datasets = [("song_data", data), ("genre_data", genre_data), ("year_data", year_data), ("artist_data", artist_data)]
+
+# clustering
+song_cluster_pipeline = Pipeline([('scaler', StandardScaler()), ('kmeans', KMeans(n_clusters=20, verbose=False))], verbose=False)
+X = data.select_dtypes(np.number)
+number_cols = list(X.columns)
+song_cluster_pipeline.fit(X)
+song_cluster_labels = song_cluster_pipeline.predict(X)
+data['cluster_label'] = song_cluster_labels
+```
+
+Building the recommender
+```bash
+
+# list for numerical columns for comparison
+number_cols = ['valence', 'year', 'acousticness', 'danceability', 'duration_ms', 'energy', 'explicit',
+               'instrumentalness', 'key', 'liveness', 'loudness', 'mode', 'popularity', 'speechiness', 'tempo']
+
+sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET))
+
+
+# if a song doesn't show up in the data we loaded, this method will try to find it using the Spotipy API
+def find_song(name, year):
+    song_data = defaultdict()
+    results = sp.search(q='track: {} year: {}'.format(name, year), limit=1)
+    if not results['tracks']['items']:
+        return None
+
+    results = results['tracks']['items'][0]
+    track_id = results['id']
+    audio_features = sp.audio_features(track_id)[0]
+
+    song_data['name'] = [name]
+    song_data['year'] = [year]
+    song_data['explicit'] = [int(results['explicit'])]
+    song_data['duration_ms'] = [results['duration_ms']]
+    song_data['popularity'] = [results['popularity']]
+
+    for key, value in audio_features.items():
+        song_data[key] = value
+
+    return pd.DataFrame(song_data)
+
+
+# search for a song in the existing dataset
+def get_song_data(song, spotify_data):
+    try:
+        song_data = spotify_data[(spotify_data['name'] == song['name']) & (spotify_data['year'] == song['year'])].iloc[0]
+        return song_data
+    except IndexError:
+        return find_song(song['name'], song['year'])
+
+
+# get mean and flatten songs so that they are comparable to the data in the clusters
+def get_mean_vector(song_list, spotify_data):
+    song_vectors = []
+    for song in song_list:
+        song_data = get_song_data(song, spotify_data)
+        if song_data is None:
+            print('Warning: {} does not exist in Spotify or in database'.format(song['name']))
+            continue
+        song_vector = song_data[number_cols].values
+        song_vectors.append(song_vector)
+    song_matrix = np.array(list(song_vectors))
+    return np.mean(song_matrix, axis=0)
+
+
+def flatten_dict_list(dict_list):
+    flattened_dict = defaultdict()
+    for key in dict_list[0].keys():
+        flattened_dict[key] = []
+    for dictionary in dict_list:
+        for key, value in dictionary.items():
+            flattened_dict[key].append(value)
+    return flattened_dict
+
+
+# using the clusters to find songs to recommend
+def recommend_songs(song_list, spotify_data, n_songs=10):
+    metadata_cols = ['name', 'year', 'artists']
+    song_dict = flatten_dict_list(song_list)
+    song_center = get_mean_vector(song_list, spotify_data)
+    scaler = song_cluster_pipeline.steps[0][1]
+    scaled_data = scaler.transform(spotify_data[number_cols])
+    scaled_song_center = scaler.transform(song_center.reshape(1, -1))
+    distances = cdist(scaled_song_center, scaled_data, 'cosine')
+    index = list(np.argsort(distances)[:, :n_songs][0])
+    rec_songs = spotify_data.iloc[index]
+    rec_songs = rec_songs[~rec_songs['name'].isin(song_dict['name'])]
+    return rec_songs[metadata_cols].to_dict(orient='records')
+```
+
+
+## DATA ANALYSIS - LEARNING ABOUT THE DATA
 ## Cleaning & Initial Analysis
 
 - All data was numerical and there were no null values - so no cleaning was necessary.
