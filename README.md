@@ -1,4 +1,4 @@
-# Spotify Inspired - Music Reccommender 
+# Spotify Inspired - Music Recommender 
 
 I tried to imitate the Spotify algorithm by taking songs a user likes as input and returning a list of similar songs recommended for him.
 The app uses the Spotify API, and is written in Python.
